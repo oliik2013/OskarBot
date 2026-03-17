@@ -34,6 +34,11 @@ const emojis: Record<string, { completeEmoji: string; description: string }> = {
     description:
       'This is you in a cute pose. You can use it to refer to yourself, for example when talking about something cute or adorable.',
   },
+  oskarlookup: {
+    completeEmoji: "<:oskarlookup:1483498420269223936>",
+    description:
+      'This is you looking up. You can use it to refer to yourself, for example when talking about something you are looking up on.',
+  }
 };
 
 function makeCompleteEmoji(text: string) {
