@@ -84,9 +84,23 @@ async function playPurrOnGuilds() {
         console.log("Has members");
         const randomValue = Math.random();
         console.log(randomValue);
+        if (!channel.joinable || !channel.speakable) {
+          console.warn(
+            `Skipping channel ${channel.name} due to missing permissions`
+          );
+          continue;
+        }
+
         if (randomValue < 0.25 || channel.name === "121.5") {
-          await playAudio(channel, "assets/purr.mp3");
-          console.log("Purred successfully!");
+          try {
+            await playAudio(channel, "assets/purr.mp3");
+            console.log("Purred successfully!");
+          } catch (error) {
+            console.error(
+              `Failed to play audio in ${channel.name}:`,
+              error
+            );
+          }
         }
       }
     }
@@ -95,8 +109,9 @@ async function playPurrOnGuilds() {
 
 client.once(Events.ClientReady, () => {
   console.log("Ready!");
-  setInterval(playPurrOnGuilds, 1000 * 60 * 5);
-  playPurrOnGuilds();
+  // The auto-purr loop is temporarily disabled to avoid repeated failures.
+  // setInterval(playPurrOnGuilds, 1000 * 60 * 5);
+  // playPurrOnGuilds();
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {

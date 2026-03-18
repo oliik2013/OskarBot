@@ -6,6 +6,7 @@ import {
   AudioPlayerStatus,
   StreamType,
   VoiceConnectionStatus,
+  entersState,
 } from "@discordjs/voice";
 import { join } from "path";
 import type { ClientType } from "../types.ts";
@@ -43,52 +44,75 @@ export function joinChannel(channel: VoiceChannel) {
 export async function playAudio(channel: VoiceChannel, filename: string) {
   const connection = joinChannel(channel);
 
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
+  const destroyConnection = () => {
+    try {
       connection.destroy();
-      reject(new Error(`playAudio timed out in channel ${channel.name}`));
-    }, 30_000);
+    } catch (error) {
+      console.error("Failed to destroy voice connection:", error);
+    }
+  };
 
-    connection.once(VoiceConnectionStatus.Ready, () => {
-      try {
-        const player = createAudioPlayer();
-        const resource = createAudioResource(join(process.cwd(), filename));
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+  } catch (error) {
+    destroyConnection();
+    throw new Error(
+      `Failed to connect to ${channel.name}: ${(error as Error).message}`
+    );
+  }
 
-        connection.subscribe(player);
-        console.log("Subscribed to player");
-        player.play(resource);
-        console.log("Playing audio");
+  const player = createAudioPlayer();
+  const resource = createAudioResource(join(process.cwd(), filename));
+  const subscription = connection.subscribe(player);
 
-        player.on(AudioPlayerStatus.Idle, () => {
-          console.log("Idle");
-          clearTimeout(timeout);
-          connection.destroy();
-          resolve(true);
-        });
+  if (!subscription) {
+    destroyConnection();
+    throw new Error(`Failed to subscribe to player in ${channel.name}`);
+  }
 
-        player.on("error", (error) => {
-          console.error(`Audio player error in ${channel.name}:`, error);
-          clearTimeout(timeout);
-          connection.destroy();
-          reject(error);
-        });
-      } catch (err) {
-        clearTimeout(timeout);
-        connection.destroy();
-        reject(err);
+  player.play(resource);
+
+  return await new Promise<boolean>((resolve, reject) => {
+    let settled = false;
+    let timeout: NodeJS.Timeout;
+
+    const finish = (result?: boolean, error?: Error) => {
+      if (settled) {
+        return;
       }
-    });
-
-    connection.on(VoiceConnectionStatus.Disconnected, () => {
+      settled = true;
       clearTimeout(timeout);
-      resolve(false);
+      subscription.unsubscribe();
+      destroyConnection();
+
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(result ?? true);
+    };
+
+    timeout = setTimeout(() => {
+      finish(false, new Error(`playAudio timed out in channel ${channel.name}`));
+    }, 120_000);
+
+    player.once(AudioPlayerStatus.Idle, () => {
+      finish(true);
     });
 
-    connection.on("error", (err) => {
+    player.once("error", (error) => {
+      console.error(`Audio player error in ${channel.name}:`, error);
+      finish(false, error as Error);
+    });
+
+    connection.once(VoiceConnectionStatus.Disconnected, () => {
+      finish(false, new Error(`Voice connection lost in ${channel.name}`));
+    });
+
+    connection.once("error", (err) => {
       console.error(`Voice connection error in ${channel.name}:`, err);
-      clearTimeout(timeout);
-      try { connection.destroy(); } catch {}
-      reject(err);
+      finish(false, err as Error);
     });
   });
 }

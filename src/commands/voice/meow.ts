@@ -3,6 +3,7 @@ import {
   ChatInputCommandInteraction,
   GuildMember,
   SlashCommandBuilder,
+  VoiceChannel,
 } from "discord.js";
 import { playAudio } from "../../utils/voice.ts";
 
@@ -37,9 +38,25 @@ export default {
       await interaction.followUp("That's not a valid voice channel!");
       return;
     }
+
+    const voiceChannel = channel as VoiceChannel;
+
+    if (!voiceChannel.joinable || !voiceChannel.speakable) {
+      await interaction.followUp(
+        "I can't join or speak in that voice channel. Please adjust my permissions and try again."
+      );
+      return;
+    }
+
     await interaction.followUp(`purring on <#${channel.id}>!`);
-    // @ts-expect-error inference is broken
-    await playAudio(channel, "assets/meow.mp3");
-    console.log("Audio played successfully!");
+    try {
+      await playAudio(voiceChannel, "assets/meow.mp3");
+      console.log("Audio played successfully!");
+    } catch (error) {
+      console.error("Failed to play meow:", error);
+      await interaction.followUp(
+        "I couldn't play audio in that channel. Please try again later."
+      );
+    }
   },
 };
