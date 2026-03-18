@@ -8,8 +8,8 @@ import { playAudio } from "../../utils/voice.ts";
 
 export default {
   data: new SlashCommandBuilder()
-    .setName("meow")
-    .setDescription("Joins a voice chat and meows")
+    .setName("purr")
+    .setDescription("Joins a voice chat and purrs")
     .addChannelOption((option) =>
       option
         .addChannelTypes(ChannelType.GuildVoice)
@@ -39,7 +39,7 @@ export default {
     }
     await interaction.followUp(`purring on <#${channel.id}>!`);
     // @ts-expect-error inference is broken
-    await playAudio(channel, "assets/meow.mp3");
+    await playAudio(channel, "assets/purr.mp3");
     console.log("Audio played successfully!");
   },
 };
