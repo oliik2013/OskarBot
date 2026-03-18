@@ -48,9 +48,15 @@ export default {
       return;
     }
 
-    await interaction.followUp(`purring on <#${channel.id}>!`);
+    await interaction.followUp(`meowing on <#${channel.id}>!`);
     try {
-      await playAudio(voiceChannel, "assets/meow.mp3");
+      const played = await playAudio(voiceChannel, "assets/meow.mp3");
+      if (!played) {
+        await interaction.followUp(
+          "I couldn't start playback in that channel. This is usually a voice codec or ffmpeg issue on the host."
+        );
+        return;
+      }
       console.log("Audio played successfully!");
     } catch (error) {
       console.error("Failed to play meow:", error);

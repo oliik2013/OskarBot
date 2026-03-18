@@ -8,8 +8,26 @@ import {
   VoiceConnectionStatus,
   entersState,
 } from "@discordjs/voice";
-import { join } from "path";
+import { existsSync } from "fs";
+import { dirname, isAbsolute, join } from "path";
+import { fileURLToPath } from "url";
 import type { ClientType } from "../types.ts";
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+function resolveAudioPath(filename: string): string {
+  if (isAbsolute(filename)) {
+    return filename;
+  }
+
+  const cwdPath = join(process.cwd(), filename);
+  if (existsSync(cwdPath)) {
+    return cwdPath;
+  }
+
+  return join(__dirname, "..", "..", filename);
+}
 
 /**
  * Gets all voice channels in a guild
@@ -42,6 +60,11 @@ export function joinChannel(channel: VoiceChannel) {
  * Plays an MP3 file in a voice channel
  */
 export async function playAudio(channel: VoiceChannel, filename: string) {
+  const filePath = resolveAudioPath(filename);
+  if (!existsSync(filePath)) {
+    throw new Error(`Audio file not found: ${filePath}`);
+  }
+
   const connection = joinChannel(channel);
 
   const destroyConnection = () => {
@@ -62,7 +85,9 @@ export async function playAudio(channel: VoiceChannel, filename: string) {
   }
 
   const player = createAudioPlayer();
-  const resource = createAudioResource(join(process.cwd(), filename));
+  const resource = createAudioResource(filePath, {
+    inputType: StreamType.Arbitrary,
+  });
   const subscription = connection.subscribe(player);
 
   if (!subscription) {
@@ -72,49 +97,17 @@ export async function playAudio(channel: VoiceChannel, filename: string) {
 
   player.play(resource);
 
-  return await new Promise<boolean>((resolve, reject) => {
-    let settled = false;
-    let timeout: NodeJS.Timeout;
-
-    const finish = (result?: boolean, error?: Error) => {
-      if (settled) {
-        return;
-      }
-      settled = true;
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-      destroyConnection();
-
-      if (error) {
-        reject(error);
-        return;
-      }
-
-      resolve(result ?? true);
-    };
-
-    timeout = setTimeout(() => {
-      finish(false, new Error(`playAudio timed out in channel ${channel.name}`));
-    }, 120_000);
-
-    player.once(AudioPlayerStatus.Idle, () => {
-      finish(true);
-    });
-
-    player.once("error", (error) => {
-      console.error(`Audio player error in ${channel.name}:`, error);
-      finish(false, error as Error);
-    });
-
-    connection.once(VoiceConnectionStatus.Disconnected, () => {
-      finish(false, new Error(`Voice connection lost in ${channel.name}`));
-    });
-
-    connection.once("error", (err) => {
-      console.error(`Voice connection error in ${channel.name}:`, err);
-      finish(false, err as Error);
-    });
-  });
+  try {
+    await entersState(player, AudioPlayerStatus.Playing, 20_000);
+    await entersState(player, AudioPlayerStatus.Idle, 120_000);
+    return true;
+  } catch (error) {
+    console.error(`playAudio failed in ${channel.name}:`, error);
+    return false;
+  } finally {
+    subscription.unsubscribe();
+    destroyConnection();
+  }
 }
 
 export async function playAudioPlaylist(

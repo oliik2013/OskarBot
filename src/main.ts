@@ -93,7 +93,11 @@ async function playPurrOnGuilds() {
 
         if (randomValue < 0.25 || channel.name === "121.5") {
           try {
-            await playAudio(channel, "assets/purr.mp3");
+            const played = await playAudio(channel, "assets/purr.mp3");
+            if (!played) {
+              console.warn(`Playback did not start in ${channel.name}`);
+              continue;
+            }
             console.log("Purred successfully!");
           } catch (error) {
             console.error(
