@@ -12,6 +12,7 @@ import dotenv from "dotenv";
 import type { ClientType, EventType, CommandType } from "./types.ts";
 import { fileURLToPath } from "url";
 import { getVoiceChannels, hasMembers, playAudio } from "./utils/voice.ts";
+import { getVoiceConnection } from "@discordjs/voice";
 import { askLimit } from "./utils/redis.ts";
 
 console.log("Starting up Oskar");
@@ -66,11 +67,18 @@ for (const file of eventFiles) {
   const filePath = new URL("file://" + path.join(eventsPath, file));
   const event = (await import(filePath.toString())).default as EventType;
   client.on(event.eventType, (...args: unknown[]) => {
-    console.log(args);
     event.execute(client, ...args);
   });
   client.events.set(event.eventType, event);
 }
+
+client.on("raw", (packet) => {
+  if (packet.t === "VOICE_SERVER_UPDATE" || packet.t === "VOICE_STATE_UPDATE") {
+    console.error(`[Gateway Raw] Received ${packet.t} for guild ${packet.d.guild_id}:`, JSON.stringify(packet.d));
+  }
+});
+
+client.on(Events.Error, console.error);
 
 async function playPurrOnGuilds() {
   const guilds = client.guilds.cache.filter(
@@ -111,8 +119,15 @@ async function playPurrOnGuilds() {
   }
 }
 
-client.once(Events.ClientReady, () => {
+client.once(Events.ClientReady, async () => {
   console.log("Ready!");
+  
+  // Cleanup any ghost voice connections on startup
+  for (const guild of client.guilds.cache.values()) {
+    const connection = getVoiceConnection(guild.id);
+    if (connection) connection.destroy();
+  }
+
   // The auto-purr loop is temporarily disabled to avoid repeated failures.
   // setInterval(playPurrOnGuilds, 1000 * 60 * 5);
   // playPurrOnGuilds();

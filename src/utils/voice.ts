@@ -51,20 +51,52 @@ export function hasMembers(channel: VoiceChannel): boolean {
  */
 export function joinChannel(channel: VoiceChannel) {
   const existingConnection = getVoiceConnection(channel.guild.id);
-  if (existingConnection) {
+  
+  // Force a fresh connection if the existing one is not Ready
+  if (existingConnection && existingConnection.state.status !== VoiceConnectionStatus.Ready) {
+    console.error(`[Voice Join] Destroying existing ${existingConnection.state.status} connection to ${channel.name}`);
     try {
       existingConnection.destroy();
-    } catch (error) {
-      console.error("Failed to destroy existing voice connection:", error);
-    }
+    } catch {}
+  } else if (existingConnection && existingConnection.joinConfig.channelId === channel.id) {
+    return existingConnection;
   }
 
-  return joinVoiceChannel({
+  console.error(`[Voice Join] Creating new connection to ${channel.name} (${channel.id}) in guild ${channel.guild.id}`);
+  const connection = joinVoiceChannel({
     channelId: channel.id,
     guildId: channel.guild.id,
-    adapterCreator: channel.guild.voiceAdapterCreator,
-    selfDeaf: false,
+    adapterCreator: (methods) => {
+      console.error(`[Voice Adapter] Creator called for guild ${channel.guild.id}`);
+      const adapter = channel.guild.voiceAdapterCreator(methods);
+      return {
+        sendPayload: (payload) => {
+          if (payload.op === 4) {
+             console.error(`[Voice Adapter] Sending op 4 (Join Voice) to gateway`);
+          }
+          return adapter.sendPayload(payload);
+        },
+        destroy: () => {
+          console.error(`[Voice Adapter] Destroy called`);
+          return adapter.destroy();
+        },
+      };
+    },
+    selfDeaf: true,
+    selfMute: false,
+    debug: true,
   });
+
+  // Attach debug and error listeners immediately
+  connection.on("debug", (message) => {
+    console.error(`[Voice Debug] ${message}`);
+  });
+
+  connection.on("error", (error) => {
+    console.error(`[Voice Error] ${channel.name}: ${error.message}`);
+  });
+
+  return connection;
 }
 
 /**
@@ -79,23 +111,37 @@ export async function playAudio(channel: VoiceChannel, filename: string) {
   const connection = joinChannel(channel);
 
   const destroyConnection = () => {
-    try {
-      connection.destroy();
-    } catch (error) {
-      console.error("Failed to destroy voice connection:", error);
+    if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      try {
+        connection.destroy();
+      } catch (error) {
+        console.error("Failed to destroy voice connection:", error);
+      }
     }
   };
 
-  try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
-  } catch (error) {
-    console.error(
-      `Voice connection was not ready in ${channel.name}:`,
-      error
-    );
-    destroyConnection();
-    return false;
-  }
+  // Log state changes to help debug
+  connection.on("stateChange", (oldState, newState) => {
+    console.error(`[Voice State] ${channel.name}: ${oldState.status} -> ${newState.status}`);
+  });
+
+  // Enable library debug logging
+  connection.on("debug", (message) => {
+    console.error(`[Voice Debug] ${message}`);
+  });
+
+  const checkInterval = setInterval(() => {
+    if (connection.state.status !== VoiceConnectionStatus.Ready &&
+        connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      console.error(`[Voice Check] Still ${connection.state.status} in ${channel.name}...`);
+    }
+  }, 5000);
+
+  // Small delay before waiting for state to help with transient issues in some environments
+  await new Promise(resolve => setTimeout(resolve, 1000));
+
+  // Skip entersState for connection - the library will queue audio until ready
+  // or fail internally if it can't connect, which we'll catch on the player.
 
   const player = createAudioPlayer();
   const resource = createAudioResource(filePath, {
@@ -110,14 +156,22 @@ export async function playAudio(channel: VoiceChannel, filename: string) {
 
   player.play(resource);
 
+  // Monitor player errors
+  player.on("error", (error) => {
+    console.error(`AudioPlayer error in ${channel.name}:`, error.message, error.resource);
+  });
+
   try {
-    await entersState(player, AudioPlayerStatus.Playing, 20_000);
+    console.error(`[Voice Play] Waiting for player to start in ${channel.name}...`);
+    await entersState(player, AudioPlayerStatus.Playing, 35_000);
+    console.error(`[Voice Play] Audio started in ${channel.name}!`);
     await entersState(player, AudioPlayerStatus.Idle, 120_000);
     return true;
   } catch (error) {
     console.error(`playAudio failed in ${channel.name}:`, error);
     return false;
   } finally {
+    clearInterval(checkInterval);
     subscription.unsubscribe();
     destroyConnection();
   }
@@ -133,6 +187,18 @@ export async function playAudioPlaylist(
   if (filenames.length === 0) return;
 
   const connection = joinChannel(channel);
+
+  // Wait for connection to be ready before proceeding
+  try {
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
+  } catch (error) {
+    console.error(`Playlist connection failed in ${channel.name}:`, error);
+    if (connection.state.status !== VoiceConnectionStatus.Destroyed) {
+      connection.destroy();
+    }
+    return;
+  }
+
   const player = createAudioPlayer();
   (channel.client as ClientType).players.set(channel.guild.id, player);
   console.log("Player created");
