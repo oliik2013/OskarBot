@@ -7,6 +7,7 @@ import {
   StreamType,
   VoiceConnectionStatus,
   entersState,
+  getVoiceConnection,
 } from "@discordjs/voice";
 import { existsSync } from "fs";
 import { dirname, isAbsolute, join } from "path";
@@ -49,10 +50,20 @@ export function hasMembers(channel: VoiceChannel): boolean {
  * Joins a voice channel
  */
 export function joinChannel(channel: VoiceChannel) {
+  const existingConnection = getVoiceConnection(channel.guild.id);
+  if (existingConnection) {
+    try {
+      existingConnection.destroy();
+    } catch (error) {
+      console.error("Failed to destroy existing voice connection:", error);
+    }
+  }
+
   return joinVoiceChannel({
     channelId: channel.id,
     guildId: channel.guild.id,
     adapterCreator: channel.guild.voiceAdapterCreator,
+    selfDeaf: false,
   });
 }
 
@@ -76,12 +87,14 @@ export async function playAudio(channel: VoiceChannel, filename: string) {
   };
 
   try {
-    await entersState(connection, VoiceConnectionStatus.Ready, 15_000);
+    await entersState(connection, VoiceConnectionStatus.Ready, 30_000);
   } catch (error) {
-    destroyConnection();
-    throw new Error(
-      `Failed to connect to ${channel.name}: ${(error as Error).message}`
+    console.error(
+      `Voice connection was not ready in ${channel.name}:`,
+      error
     );
+    destroyConnection();
+    return false;
   }
 
   const player = createAudioPlayer();
