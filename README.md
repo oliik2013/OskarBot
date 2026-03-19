@@ -1,3 +1,5 @@
+### FORKED FROM: [https://github.com/notmqrc/OskarBot](https://github.com/notmqrc/OskarBot)
+
 # Oskar - AI Cat Discord Bot
 
 An AI-powered Discord bot that simulates an 8-month-old black cat named Oskar. The bot responds to mentions with personality-driven messages, plays music in voice channels, and can send announcements to multiple servers.
