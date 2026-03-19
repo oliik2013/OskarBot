@@ -1,4 +1,4 @@
-### FORKED FROM: [https://github.com/notmqrc/OskarBot](https://github.com/notmqrc/OskarBot)
+### FORKED FROM: [https://github.com/notmqrc/OskarBot](https://github.com/notmqrc/OskarBot), had to leave fork network.
 
 # Oskar - AI Cat Discord Bot
 
@@ -88,4 +88,4 @@ src/
 
 ## License
 
-ISC
+[MIT](LICENSE)
