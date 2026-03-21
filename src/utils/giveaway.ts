@@ -55,6 +55,7 @@ function isGiveawayRecord(value: unknown): value is GiveawayRecord {
 }
 
 function parseGiveaway(rawGiveaway: unknown): GiveawayRecord | null {
+function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
   if (!rawGiveaway) {
     return null;
   }
@@ -82,6 +83,8 @@ function parseGiveaway(rawGiveaway: unknown): GiveawayRecord | null {
       parsedGiveaway,
     );
     return null;
+  try {
+    return JSON.parse(rawGiveaway) as GiveawayRecord;
   } catch (error) {
     console.error("Failed to parse giveaway data:", error);
     return null;
@@ -146,6 +149,7 @@ function clearGiveawaySchedule(giveawayId: string) {
 
 async function getGiveaway(giveawayId: string) {
   return parseGiveaway(await redis.get(getGiveawayKey(giveawayId)));
+  return parseGiveaway(await redis.get<string>(getGiveawayKey(giveawayId)));
 }
 
 function shuffle<T>(items: T[]) {
