@@ -37,6 +37,11 @@ const command = {
     ),
 
   async execute(interaction: ChatInputCommandInteraction) {
+    const ownerId = process.env.OWNER_ID;
+    if (interaction.user.id !== ownerId) {
+      return;
+    }
+
     if (!interaction.inGuild()) {
       await interaction.reply({
         content: "This command can only be used in a server.",
