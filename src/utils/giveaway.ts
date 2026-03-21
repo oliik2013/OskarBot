@@ -35,6 +35,7 @@ function getParticipantsKey(giveawayId: string) {
   return `giveaways:participants:${giveawayId}`;
 }
 
+function normalizeGiveawayRecord(rawGiveaway: unknown): GiveawayRecord | null {
 function isGiveawayRecord(value: unknown): value is GiveawayRecord {
   if (!value || typeof value !== "object") {
     return false;
@@ -60,6 +61,20 @@ function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
     return null;
   }
 
+  let parsedGiveaway: unknown = rawGiveaway;
+  if (typeof parsedGiveaway === "string") {
+    try {
+      parsedGiveaway = JSON.parse(parsedGiveaway);
+    } catch (error) {
+      console.error("Failed to parse giveaway data:", error);
+      return null;
+    }
+  }
+
+  if (!parsedGiveaway || typeof parsedGiveaway !== "object") {
+    console.error(
+      "Failed to parse giveaway data: unexpected value",
+      parsedGiveaway,
   if (isGiveawayRecord(rawGiveaway)) {
     return rawGiveaway;
   }
@@ -72,6 +87,18 @@ function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
     return null;
   }
 
+  const record = parsedGiveaway as Record<string, unknown>;
+  if (
+    typeof record.id !== "string" ||
+    typeof record.prize !== "string" ||
+    typeof record.winnerCount !== "number" ||
+    typeof record.hostId !== "string" ||
+    typeof record.guildId !== "string" ||
+    typeof record.channelId !== "string" ||
+    typeof record.messageId !== "string" ||
+    typeof record.endsAt !== "number" ||
+    typeof record.ended !== "boolean"
+  ) {
   try {
     const parsedGiveaway = JSON.parse(rawGiveaway) as unknown;
     if (isGiveawayRecord(parsedGiveaway)) {
@@ -83,6 +110,19 @@ function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
       parsedGiveaway,
     );
     return null;
+  }
+
+  return {
+    id: record.id as string,
+    prize: record.prize as string,
+    winnerCount: record.winnerCount as number,
+    hostId: record.hostId as string,
+    guildId: record.guildId as string,
+    channelId: record.channelId as string,
+    messageId: record.messageId as string,
+    endsAt: record.endsAt as number,
+    ended: record.ended as boolean,
+  };
   try {
     return JSON.parse(rawGiveaway) as GiveawayRecord;
   } catch (error) {
@@ -148,6 +188,7 @@ function clearGiveawaySchedule(giveawayId: string) {
 }
 
 async function getGiveaway(giveawayId: string) {
+  return normalizeGiveawayRecord(await redis.get(getGiveawayKey(giveawayId)));
   return parseGiveaway(await redis.get(getGiveawayKey(giveawayId)));
   return parseGiveaway(await redis.get<string>(getGiveawayKey(giveawayId)));
 }
