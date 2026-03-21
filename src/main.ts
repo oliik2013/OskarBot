@@ -11,9 +11,9 @@ import path from "path";
 import dotenv from "dotenv";
 import type { ClientType, EventType, CommandType } from "./types.ts";
 import { fileURLToPath } from "url";
-import { getVoiceChannels, hasMembers, playAudio } from "./utils/voice.ts";
 import { getVoiceConnection } from "@discordjs/voice";
 import { askLimit } from "./utils/redis.ts";
+import { handleGiveawayButton, recoverGiveaways } from "./utils/giveaway.ts";
 
 console.log("Starting up Oskar");
 
@@ -57,7 +57,7 @@ for (const folder of commandFolders) {
       client.commands.set(command.data.name, command);
     } else {
       console.log(
-        `[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`
+        `[WARNING] The command at ${filePath} is missing a required "data" or "execute" property.`,
       );
     }
   }
@@ -74,59 +74,25 @@ for (const file of eventFiles) {
 
 client.on("raw", (packet) => {
   if (packet.t === "VOICE_SERVER_UPDATE" || packet.t === "VOICE_STATE_UPDATE") {
-    console.error(`[Gateway Raw] Received ${packet.t} for guild ${packet.d.guild_id}:`, JSON.stringify(packet.d));
+    console.error(
+      `[Gateway Raw] Received ${packet.t} for guild ${packet.d.guild_id}:`,
+      JSON.stringify(packet.d),
+    );
   }
 });
 
 client.on(Events.Error, console.error);
 
-async function playPurrOnGuilds() {
-  const guilds = client.guilds.cache.filter(
-    (guild) => guild.members.cache.filter((member) => member.user.bot).size > 0
-  );
-  for (const [, guild] of guilds) {
-    const channels = getVoiceChannels(guild);
-    for (const channel of channels) {
-      console.log("Got channel " + channel.name);
-      if (hasMembers(channel)) {
-        console.log("Has members");
-        const randomValue = Math.random();
-        console.log(randomValue);
-        if (!channel.joinable || !channel.speakable) {
-          console.warn(
-            `Skipping channel ${channel.name} due to missing permissions`
-          );
-          continue;
-        }
-
-        if (randomValue < 0.25 || channel.name === "121.5") {
-          try {
-            const played = await playAudio(channel, "assets/purr.mp3");
-            if (!played) {
-              console.warn(`Playback did not start in ${channel.name}`);
-              continue;
-            }
-            console.log("Purred successfully!");
-          } catch (error) {
-            console.error(
-              `Failed to play audio in ${channel.name}:`,
-              error
-            );
-          }
-        }
-      }
-    }
-  }
-}
-
 client.once(Events.ClientReady, async () => {
   console.log("Ready!");
-  
+
   // Cleanup any ghost voice connections on startup
   for (const guild of client.guilds.cache.values()) {
     const connection = getVoiceConnection(guild.id);
     if (connection) connection.destroy();
   }
+
+  await recoverGiveaways(client);
 
   // The auto-purr loop is temporarily disabled to avoid repeated failures.
   // setInterval(playPurrOnGuilds, 1000 * 60 * 5);
@@ -134,12 +100,31 @@ client.once(Events.ClientReady, async () => {
 });
 
 client.on(Events.InteractionCreate, async (interaction) => {
+  if (interaction.isButton()) {
+    try {
+      const handled = await handleGiveawayButton(interaction);
+      if (handled) {
+        return;
+      }
+    } catch (error) {
+      console.error(error);
+      if (!interaction.replied && !interaction.deferred) {
+        await interaction.reply({
+          content:
+            "There was an error while processing this giveaway interaction!",
+          flags: MessageFlags.Ephemeral,
+        });
+      }
+      return;
+    }
+  }
+
   if (interaction.isChatInputCommand()) {
     const command = client.commands.get(interaction.commandName);
 
     if (!command) {
       console.error(
-        `No command matching ${interaction.commandName} was found.`
+        `No command matching ${interaction.commandName} was found.`,
       );
       return;
     }
@@ -169,7 +154,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (!command) {
       console.error(
-        `No command matching ${interaction.commandName} was found.`
+        `No command matching ${interaction.commandName} was found.`,
       );
       return;
     }
@@ -199,7 +184,7 @@ client.on(Events.InteractionCreate, async (interaction) => {
 
     if (!command) {
       console.error(
-        `No command matching ${interaction.commandName} was found.`
+        `No command matching ${interaction.commandName} was found.`,
       );
       return;
     }
