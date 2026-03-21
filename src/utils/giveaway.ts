@@ -35,11 +35,54 @@ function getParticipantsKey(giveawayId: string) {
   return `giveaways:participants:${giveawayId}`;
 }
 
+function isGiveawayRecord(value: unknown): value is GiveawayRecord {
+  if (!value || typeof value !== "object") {
+    return false;
+  }
+
+  const record = value as Partial<GiveawayRecord>;
+  return (
+    typeof record.id === "string" &&
+    typeof record.prize === "string" &&
+    typeof record.winnerCount === "number" &&
+    typeof record.hostId === "string" &&
+    typeof record.guildId === "string" &&
+    typeof record.channelId === "string" &&
+    typeof record.messageId === "string" &&
+    typeof record.endsAt === "number" &&
+    typeof record.ended === "boolean"
+  );
+}
+
+function parseGiveaway(rawGiveaway: unknown): GiveawayRecord | null {
 function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
   if (!rawGiveaway) {
     return null;
   }
 
+  if (isGiveawayRecord(rawGiveaway)) {
+    return rawGiveaway;
+  }
+
+  if (typeof rawGiveaway !== "string") {
+    console.error(
+      "Failed to parse giveaway data: unexpected value",
+      rawGiveaway,
+    );
+    return null;
+  }
+
+  try {
+    const parsedGiveaway = JSON.parse(rawGiveaway) as unknown;
+    if (isGiveawayRecord(parsedGiveaway)) {
+      return parsedGiveaway;
+    }
+
+    console.error(
+      "Failed to parse giveaway data: invalid record shape",
+      parsedGiveaway,
+    );
+    return null;
   try {
     return JSON.parse(rawGiveaway) as GiveawayRecord;
   } catch (error) {
@@ -105,6 +148,7 @@ function clearGiveawaySchedule(giveawayId: string) {
 }
 
 async function getGiveaway(giveawayId: string) {
+  return parseGiveaway(await redis.get(getGiveawayKey(giveawayId)));
   return parseGiveaway(await redis.get<string>(getGiveawayKey(giveawayId)));
 }
 
