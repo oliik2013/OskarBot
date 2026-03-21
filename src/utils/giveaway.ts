@@ -36,32 +36,11 @@ function getParticipantsKey(giveawayId: string) {
 }
 
 function normalizeGiveawayRecord(rawGiveaway: unknown): GiveawayRecord | null {
-function isGiveawayRecord(value: unknown): value is GiveawayRecord {
-  if (!value || typeof value !== "object") {
-    return false;
-  }
-
-  const record = value as Partial<GiveawayRecord>;
-  return (
-    typeof record.id === "string" &&
-    typeof record.prize === "string" &&
-    typeof record.winnerCount === "number" &&
-    typeof record.hostId === "string" &&
-    typeof record.guildId === "string" &&
-    typeof record.channelId === "string" &&
-    typeof record.messageId === "string" &&
-    typeof record.endsAt === "number" &&
-    typeof record.ended === "boolean"
-  );
-}
-
-function parseGiveaway(rawGiveaway: unknown): GiveawayRecord | null {
-function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
   if (!rawGiveaway) {
     return null;
   }
 
-  let parsedGiveaway: unknown = rawGiveaway;
+  let parsedGiveaway = rawGiveaway;
   if (typeof parsedGiveaway === "string") {
     try {
       parsedGiveaway = JSON.parse(parsedGiveaway);
@@ -75,36 +54,31 @@ function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
     console.error(
       "Failed to parse giveaway data: unexpected value",
       parsedGiveaway,
-  if (isGiveawayRecord(rawGiveaway)) {
-    return rawGiveaway;
-  }
-
-  if (typeof rawGiveaway !== "string") {
-    console.error(
-      "Failed to parse giveaway data: unexpected value",
-      rawGiveaway,
     );
     return null;
   }
 
-  const record = parsedGiveaway as Record<string, unknown>;
-  if (
-    typeof record.id !== "string" ||
-    typeof record.prize !== "string" ||
-    typeof record.winnerCount !== "number" ||
-    typeof record.hostId !== "string" ||
-    typeof record.guildId !== "string" ||
-    typeof record.channelId !== "string" ||
-    typeof record.messageId !== "string" ||
-    typeof record.endsAt !== "number" ||
-    typeof record.ended !== "boolean"
-  ) {
-  try {
-    const parsedGiveaway = JSON.parse(rawGiveaway) as unknown;
-    if (isGiveawayRecord(parsedGiveaway)) {
-      return parsedGiveaway;
-    }
+  const id = Reflect.get(parsedGiveaway, "id");
+  const prize = Reflect.get(parsedGiveaway, "prize");
+  const winnerCount = Reflect.get(parsedGiveaway, "winnerCount");
+  const hostId = Reflect.get(parsedGiveaway, "hostId");
+  const guildId = Reflect.get(parsedGiveaway, "guildId");
+  const channelId = Reflect.get(parsedGiveaway, "channelId");
+  const messageId = Reflect.get(parsedGiveaway, "messageId");
+  const endsAt = Reflect.get(parsedGiveaway, "endsAt");
+  const ended = Reflect.get(parsedGiveaway, "ended");
 
+  if (
+    typeof id !== "string" ||
+    typeof prize !== "string" ||
+    typeof winnerCount !== "number" ||
+    typeof hostId !== "string" ||
+    typeof guildId !== "string" ||
+    typeof channelId !== "string" ||
+    typeof messageId !== "string" ||
+    typeof endsAt !== "number" ||
+    typeof ended !== "boolean"
+  ) {
     console.error(
       "Failed to parse giveaway data: invalid record shape",
       parsedGiveaway,
@@ -113,22 +87,16 @@ function parseGiveaway(rawGiveaway: string | null): GiveawayRecord | null {
   }
 
   return {
-    id: record.id as string,
-    prize: record.prize as string,
-    winnerCount: record.winnerCount as number,
-    hostId: record.hostId as string,
-    guildId: record.guildId as string,
-    channelId: record.channelId as string,
-    messageId: record.messageId as string,
-    endsAt: record.endsAt as number,
-    ended: record.ended as boolean,
+    id,
+    prize,
+    winnerCount,
+    hostId,
+    guildId,
+    channelId,
+    messageId,
+    endsAt,
+    ended,
   };
-  try {
-    return JSON.parse(rawGiveaway) as GiveawayRecord;
-  } catch (error) {
-    console.error("Failed to parse giveaway data:", error);
-    return null;
-  }
 }
 
 async function setGiveaway(record: GiveawayRecord) {
@@ -189,8 +157,6 @@ function clearGiveawaySchedule(giveawayId: string) {
 
 async function getGiveaway(giveawayId: string) {
   return normalizeGiveawayRecord(await redis.get(getGiveawayKey(giveawayId)));
-  return parseGiveaway(await redis.get(getGiveawayKey(giveawayId)));
-  return parseGiveaway(await redis.get<string>(getGiveawayKey(giveawayId)));
 }
 
 function shuffle<T>(items: T[]) {
