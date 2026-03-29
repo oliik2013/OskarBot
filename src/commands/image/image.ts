@@ -1,4 +1,4 @@
-import { ChatInputCommandInteraction, SlashCommandBuilder } from "discord.js";
+import { ChatInputCommandInteraction, SlashCommandBuilder, AttachmentBuilder } from "discord.js";
 
 export default {
   data: new SlashCommandBuilder()
@@ -9,6 +9,7 @@ export default {
     const imageResponse = await fetch("https://oskarapi-cat-api.sigmatwojastara.workers.dev/raw");
     const imageData = Buffer.from(await imageResponse.arrayBuffer());
     console.log(imageData.length);
-    await interaction.followUp({ files: [imageData] });
+    const attachment = new AttachmentBuilder(imageData, { name: "oskar.jpg", description: "Picture of Oskar the cat" });
+    await interaction.followUp({ files: [attachment] });
   },
 };

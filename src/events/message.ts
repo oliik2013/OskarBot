@@ -1,4 +1,4 @@
-import { Message, type OmitPartialGroupDMChannel } from "discord.js";
+import { Message, AttachmentBuilder, type OmitPartialGroupDMChannel } from "discord.js";
 import type { ClientType } from "../types.ts";
 import { genMistyOutput } from "../lib.ts";
 import { ratelimit, redis } from "../utils/redis.ts";
@@ -72,7 +72,8 @@ export default {
     if (output?.includes("{{MYSELF}}")) {
       const imageResponse = await fetch("https://morrisapi.starnumber12046.workers.dev/oskar");
       const imageData = Buffer.from(await imageResponse.arrayBuffer());
-      await message.reply({ files: [imageData] });
+      const attachment = new AttachmentBuilder(imageData, { name: "oskar.jpg", description: "Picture of Oskar the cat" });
+      await message.reply({ files: [attachment] });
       return;
     }
     if (!output) return;
