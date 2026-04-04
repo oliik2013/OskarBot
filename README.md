@@ -7,6 +7,7 @@ An AI-powered Discord bot that simulates an 8-month-old black cat named Oskar. T
 ## Features
 
 - **AI Chat**: Responds to mentions with cat-like personality using Groq AI
+- **Safety Filtering**: Uses a dedicated safety model to block harmful prompts
 - **Voice Chat**: Plays music in voice channels, can stop playback, and reports current song
 - **Image Responses**: Can send pictures of Oskar when requested
 - **Rate Limiting**: Built-in rate limiting to prevent abuse (25 messages per 5 hours)
