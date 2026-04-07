@@ -70,7 +70,7 @@ export default {
     const output = await genMistyOutput(messages, client, message);
     console.log(output);
     if (output?.includes("{{MYSELF}}")) {
-      const imageResponse = await fetch("https://morrisapi.starnumber12046.workers.dev/oskar");
+      const imageResponse = await fetch("https://oskarapi-cat-api.sigmatwojastara.workers.dev/raw");
       const imageData = Buffer.from(await imageResponse.arrayBuffer());
       const attachment = new AttachmentBuilder(imageData, { name: "oskar.jpg", description: "Picture of Oskar the cat" });
       await message.reply({ files: [attachment] });

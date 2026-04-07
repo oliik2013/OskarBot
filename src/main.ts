@@ -14,6 +14,7 @@ import { fileURLToPath } from "url";
 import { getVoiceConnection } from "@discordjs/voice";
 import { askLimit } from "./utils/redis.ts";
 import { handleGiveawayButton, recoverGiveaways } from "./utils/giveaway.ts";
+import { handleLimitResetButton } from "./commands/utils/limit.ts";
 
 console.log("Starting up Oskar");
 
@@ -102,6 +103,11 @@ client.once(Events.ClientReady, async () => {
 client.on(Events.InteractionCreate, async (interaction) => {
   if (interaction.isButton()) {
     try {
+      const handledLimitReset = await handleLimitResetButton(interaction);
+      if (handledLimitReset) {
+        return;
+      }
+
       const handled = await handleGiveawayButton(interaction);
       if (handled) {
         return;
