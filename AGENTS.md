@@ -32,7 +32,7 @@
 
 ## Audio / Assets
 - Voice playback expects local files under `assets/playlist` and resolves audio paths relative to either `process.cwd()` or the repo root helpers in `src/utils/voice.ts`.
-- The mention-response flow in `src/events/message.ts` can fetch an external image from `https://morrisapi.starnumber12046.workers.dev/oskar` when the model returns `{{MYSELF}}`.
+- The mention-response flow in `src/events/message.ts` can fetch an external image from `https://oskarapi-cat-api.sigmatwojastara.workers.dev/raw` when the model returns `{{MYSELF}}`.
 
 ## Operational Gotcha
 - `src/register.ts` currently pushes both guild and global commands, then fetches guild commands and deletes them. Read that file carefully before using it for command rollout changes.

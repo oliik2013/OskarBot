@@ -19,6 +19,7 @@ const MODEL = "moonshotai/kimi-k2-instruct-0905";
 const SAFETY_MODEL = "openai/gpt-oss-safeguard-20b";
 const UNSAFE_PROMPT_REPLY =
   "I can't help with that. Keep it safe and friendly, meow.";
+const REDACTED_USER_MESSAGE = "[redacted unsafe user message]";
 
 const groqClient = createGroq({
 
@@ -149,7 +150,7 @@ const systemPrompt = basePrompt + toolsPrompt;
 
 console.log(systemPrompt);
 
-function getMessageContentOrParts(message: Message) {
+function getMessageContentOrParts(message: Message, contentOverride?: string) {
   if (message.author.bot) {
     return {
       content: message.cleanContent || "(image)",
@@ -167,7 +168,7 @@ function getMessageContentOrParts(message: Message) {
             displayName: message.author.displayName,
             id: message.author.id,
           },
-          content: message.cleanContent,
+          content: contentOverride ?? message.cleanContent,
           id: message.id,
         }),
       } as TextPart,
@@ -290,12 +291,24 @@ export async function genMistyOutput(
   });
 
   try {
+    const modelMessages = await Promise.all(
+      messages.reverse().map(async (message) => {
+        if (message.author.bot) {
+          return getMessageContentOrParts(message);
+        }
+
+        const isUnsafe = await isUnsafePrompt(message.cleanContent);
+        return getMessageContentOrParts(
+          message,
+          isUnsafe ? REDACTED_USER_MESSAGE : undefined
+        );
+      })
+    );
+
     const response = await generateText({
       model: groqClient(MODEL),
       system: systemPrompt,
-      messages: messages
-        .reverse()
-        .map((message) => getMessageContentOrParts(message)),
+      messages: modelMessages,
       tools: {
         playMusic: playMusicTool,
         myself: myselfTool,
