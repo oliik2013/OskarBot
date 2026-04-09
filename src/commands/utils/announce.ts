@@ -16,7 +16,7 @@ const command: CommandType = {
     .addStringOption((option) =>
       option
         .setName("targets")
-        .setDescription("List of channel targets in format: guildId:channelId (one per line or semicolon-separated)")
+        .setDescription("List of channel mentions like #announcements (one per line or semicolon-separated)")
         .setRequired(true)
     )
     .addStringOption((option) =>
@@ -42,46 +42,53 @@ const command: CommandType = {
     const targets = targetsInput
       .split(/[;\n]/)
       .map((t) => t.trim())
-      .filter((t) => t.includes(":"))
+      .filter(Boolean)
       .map((t) => {
-        const [guildId, channelId] = t.split(":");
-        return { guildId: guildId.trim(), channelId: channelId.trim() };
-      });
+        const match = t.match(/^<#(\d+)>$/);
+        return match ? match[1] : null;
+      })
+      .filter((channelId): channelId is string => channelId !== null);
 
     if (targets.length === 0) {
       await interaction.reply({
-        content: "❌ No valid targets provided. Use format: guildId:channelId",
+        content: "❌ No valid targets provided. Mention channels like #announcements.",
         flags: MessageFlags.Ephemeral,
       });
       return;
     }
 
     const results: { guild: string; channel: string; success: boolean }[] = [];
+    const channelCache = new Map<string, Awaited<ReturnType<typeof interaction.client.channels.fetch>>>();
 
     await interaction.reply({
       content: `📢 Sending announcement to ${targets.length} channel(s)...`,
       flags: MessageFlags.Ephemeral,
     });
 
-    for (const target of targets) {
+    for (const channelId of targets) {
       try {
-        const guild = await interaction.client.guilds.fetch(target.guildId);
-        if (!guild) {
-          results.push({ guild: target.guildId, channel: target.channelId, success: false });
-          continue;
+        const cachedChannel = channelCache.get(channelId);
+        const channel = cachedChannel ?? (await interaction.client.channels.fetch(channelId));
+
+        if (!cachedChannel) {
+          channelCache.set(channelId, channel);
         }
 
-        const channel = await guild.channels.fetch(target.channelId);
-        if (!channel || !channel.isTextBased()) {
-          results.push({ guild: guild.name, channel: target.channelId, success: false });
+        if (
+          !channel?.isTextBased() ||
+          !("guild" in channel) ||
+          !("send" in channel) ||
+          !("name" in channel)
+        ) {
+          results.push({ guild: "Unknown guild", channel: channelId, success: false });
           continue;
         }
 
         await channel.send(message);
-        results.push({ guild: guild.name, channel: channel.name, success: true });
+        results.push({ guild: channel.guild.name, channel: channel.name, success: true });
       } catch (error) {
-        console.error("Error sending to", target, error);
-        results.push({ guild: target.guildId, channel: target.channelId, success: false });
+        console.error("Error sending to", channelId, error);
+        results.push({ guild: "Unknown guild", channel: channelId, success: false });
       }
     }
 

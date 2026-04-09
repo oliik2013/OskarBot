@@ -67,3 +67,5 @@ Thumbs.db
 # Extra files
 NOTES.txt
 test.py
+.openclaude-profile.json
+~
