@@ -39,7 +39,15 @@ const command = {
 
   async execute(interaction: ChatInputCommandInteraction) {
     const ownerId = process.env.OWNER_ID;
-    if (interaction.user.id !== ownerId) {
+    const moderatorRoleId = "1317308141779816488";
+    const hasModeratorRole =
+      interaction.inGuild() &&
+      interaction.member &&
+      typeof interaction.member.roles === "object" &&
+      "cache" in interaction.member.roles &&
+      interaction.member.roles.cache.has(moderatorRoleId);
+
+    if (interaction.user.id !== ownerId && !hasModeratorRole) {
       return;
     }
 
